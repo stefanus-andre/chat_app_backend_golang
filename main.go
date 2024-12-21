@@ -6,17 +6,29 @@ import (
 	"net/http"
 )
 
-func serverWS(w http.ResponseWriter, r *http.Request) {
-	ws, err := websocket.Upgrade(w, r)
+func serverWS(pool *websocket.Pool, w http.ResponseWriter, r *http.Request) {
+	fmt.Println("Websocket endpoint hit")
+	conn, err := websocket.Upgrade(w, r)
 	if err != nil {
 		fmt.Fprintf(w, "%+V\n", err)
 	}
-	go websocket.Writter(ws)
-	websocket.Reader(ws)
+
+	client := &websocket.Client{
+		Conn: conn,
+		Pool: pool,
+	}
+
+	pool.Register <- client
+	client.Read()
 }
 
 func setupRoutes() {
-	http.HandleFunc("/ws", serverWS)
+	pool := websocket.NewPool()
+	go pool.Start()
+
+	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+		serverWS(pool, w, r)
+	})
 }
 
 func main() {
